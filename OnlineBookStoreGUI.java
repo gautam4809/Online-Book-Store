@@ -4,155 +4,158 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.text.DecimalFormat;
+import java.util.regex.Pattern;
+
 
 public class OnlineBookStoreGUI extends JFrame {
 
-    // Simple in‑memory models (replace later with DB/JDBC)
+    // Data Models
     static class Book {
-        int id;
-        String title;
-        String author;
-        double price;
+        private final int id;
+        private String title;
+        private String author;
+        private double price;
+        private int stock;
 
-        Book(int id, String title, String author, double price) {
+        Book(int id, String title, String author, double price, int stock) {
             this.id = id;
-            this.title = title;
-            this.author = author;
+            this.title = title.trim();
+            this.author = author.trim();
             this.price = price;
+            this.stock = stock;
         }
+
+        public int getId() { return id; }
+        public String getTitle() { return title; }
+        public String getAuthor() { return author; }
+        public double getPrice() { return price; }
+        public int getStock() { return stock; }
+        public void setStock(int stock) { this.stock = stock; }
     }
 
     static class User {
-        String username;
-        String password;
+        final String username;
+        final String password;
+        final boolean isAdmin;
 
-        User(String username, String password) {
-            this.username = username;
+        User(String username, String password, boolean isAdmin) {
+            this.username = username.trim().toLowerCase();
             this.password = password;
+            this.isAdmin = isAdmin;
+        }
+    }
+
+    static class Order {
+        final String user;
+        final List<Book> items;
+        final double total;
+        final String timestamp;
+
+        Order(String user, List<Book> items, double total) {
+            this.user = user;
+            this.items = new ArrayList<>(items);
+            this.total = total;
+            this.timestamp = java.time.LocalDateTime.now().toString();
         }
     }
 
     // Data stores
-    private List<Book> books = new ArrayList<>();
-    private List<Book> cart = new ArrayList<>();
-    private List<String> orders = new ArrayList<>();
-    private List<User> users = new ArrayList<>();
-
-    // Logged-in user
+    private final List<Book> books = new ArrayList<>();
+    private final List<Book> cart = new ArrayList<>();
+    private final List<Order> orders = new ArrayList<>();
+    private final List<User> users = new ArrayList<>();
     private User currentUser;
 
-    // Main UI components
+    // UI Components
     private CardLayout cardLayout = new CardLayout();
     private JPanel mainPanel = new JPanel(cardLayout);
+    private JTable bookTable, cartTable, adminBookTable, ordersTable;
+    private DefaultTableModel bookTableModel, cartTableModel, adminBookTableModel, ordersTableModel;
+    private final DecimalFormat currencyFormat = new DecimalFormat("₹#,##0.00");
 
-    // Panels
-    private JPanel loginPanel;
-    private JPanel registerPanel;
-    private JPanel homePanel;
-    private JPanel cartPanel;
-    private JPanel adminPanel;
-    private JPanel ordersPanel;
-
-    // Tables
-    private JTable bookTable;
-    private JTable cartTable;
-    private JTable adminBookTable;
-    private JTable ordersTable;
-
-    // Models
-    private DefaultTableModel bookTableModel;
-    private DefaultTableModel cartTableModel;
-    private DefaultTableModel adminBookTableModel;
-    private DefaultTableModel ordersTableModel;
+    // Admin form fields (fixed references)
+    private JTextField adminIdField, adminTitleField, adminAuthorField, adminPriceField, adminStockField;
 
     public OnlineBookStoreGUI() {
-        setTitle("Online Book Store");
+        setTitle("Online Book Store v2.1 - Production Ready");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(900, 600);
+        setSize(1000, 700);
         setLocationRelativeTo(null);
-
+        
         initSampleData();
         initUI();
-
         setVisible(true);
     }
 
     private void initSampleData() {
-        // Sample books (stock)
-        books.add(new Book(1, "Clean Code", "Robert C. Martin", 450.0));
-        books.add(new Book(2, "Effective Java", "Joshua Bloch", 550.0));
-        books.add(new Book(3, "Introduction to Algorithms", "Cormen", 900.0));
-        books.add(new Book(4, "Design Patterns", "Gang of Four", 600.0));
-        books.add(new Book(5, "Head First Java", "Kathy Sierra", 400.0));
-        books.add(new Book(6, "Java: The Complete Reference", "Herbert Schildt", 750.0));
-        books.add(new Book(7, "Thinking in Java", "Bruce Eckel", 500.0));
-        books.add(new Book(8, "Java Concurrency in Practice", "Brian Goetz", 650.0));
-        books.add(new Book(9, "Spring in Action", "Craig Walls", 700.0));
-        books.add(new Book(10, "Head First Design Patterns", "Eric Freeman", 550.0));
-
-        // Default user
-        users.add(new User("user", "1234"));
+        books.add(new Book(1, "Clean Code", "Robert C. Martin", 450.0, 25));
+        books.add(new Book(2, "Effective Java", "Joshua Bloch", 550.0, 18));
+        books.add(new Book(3, "Introduction to Algorithms", "Cormen", 900.0, 12));
+        books.add(new Book(4, "Design Patterns", "Gang of Four", 600.0, 30));
+        books.add(new Book(5, "Head First Java", "Kathy Sierra", 400.0, 22));
+        
+        users.add(new User("user", "1234", false));
+        users.add(new User("admin", "1234", true));
     }
 
     private void initUI() {
-        // Create all panels
-        loginPanel = createLoginPanel();
-        registerPanel = createRegisterPanel();
-        homePanel = createHomePanel();
-        cartPanel = createCartPanel();
-        adminPanel = createAdminPanel();
-        ordersPanel = createOrdersPanel();
-
-        mainPanel.add(loginPanel, "LOGIN");
-        mainPanel.add(registerPanel, "REGISTER");
-        mainPanel.add(homePanel, "HOME");
-        mainPanel.add(cartPanel, "CART");
-        mainPanel.add(adminPanel, "ADMIN");
-        mainPanel.add(ordersPanel, "ORDERS");
+        mainPanel.add(createLoginPanel(), "LOGIN");
+        mainPanel.add(createRegisterPanel(), "REGISTER");
+        mainPanel.add(createHomePanel(), "HOME");
+        mainPanel.add(createCartPanel(), "CART");
+        mainPanel.add(createAdminPanel(), "ADMIN");
+        mainPanel.add(createOrdersPanel(), "ORDERS");
 
         add(mainPanel);
         cardLayout.show(mainPanel, "LOGIN");
     }
 
+    private void showMessage(String message, String title, int type) {
+        JOptionPane.showMessageDialog(this, message, title, type);
+    }
+
     private JPanel createLoginPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-
-        JLabel title = new JLabel("Online Book Store - Login");
-        title.setFont(new Font("Arial", Font.BOLD, 22));
-
-        JLabel userLabel = new JLabel("Username:");
-        JTextField userField = new JTextField(15);
-
-        JLabel passLabel = new JLabel("Password:");
-        JPasswordField passField = new JPasswordField(15);
-
-        JButton loginBtn = new JButton("Login");
-        JButton registerBtn = new JButton("Register");
-
         gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.anchor = GridBagConstraints.WEST;
+
+        JLabel title = new JLabel("📚 Online Book Store - Login");
+        title.setFont(new Font("Arial", Font.BOLD, 22));
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
         panel.add(title, gbc);
 
         gbc.gridwidth = 1;
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(userLabel, gbc);
+        gbc.gridy = 1; gbc.gridx = 0;
+        panel.add(new JLabel("Username:"), gbc);
+        JTextField userField = new JTextField(15);
         gbc.gridx = 1;
         panel.add(userField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(passLabel, gbc);
+        gbc.gridy = 2; gbc.gridx = 0;
+        panel.add(new JLabel("Password:"), gbc);
+        JPasswordField passField = new JPasswordField(15);
         gbc.gridx = 1;
         panel.add(passField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridy = 3;
+        JButton loginBtn = new JButton("Login");
+        gbc.gridx = 0;
         panel.add(loginBtn, gbc);
+
+        JButton registerBtn = new JButton("Register");
         gbc.gridx = 1;
         panel.add(registerBtn, gbc);
 
         loginBtn.addActionListener(e -> {
             String username = userField.getText().trim();
-            String password = new String(passField.getPassword());
+            String password = new String(passField.getPassword()).trim();
+
+            if (username.isEmpty() || password.isEmpty()) {
+                showMessage("Please fill all fields", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
             User found = null;
             for (User u : users) {
@@ -164,122 +167,121 @@ public class OnlineBookStoreGUI extends JFrame {
 
             if (found != null) {
                 currentUser = found;
-                JOptionPane.showMessageDialog(this, "Login successful!");
-                refreshBookTable(); // Show books on home panel
-                cardLayout.show(mainPanel, "HOME");
+                showMessage("Login successful! Welcome " + username, "Success", JOptionPane.INFORMATION_MESSAGE);
+                refreshBookTable();
+                cardLayout.show(mainPanel, found.isAdmin ? "ADMIN" : "HOME");
             } else {
-                JOptionPane.showMessageDialog(this, "Invalid credentials!");
+                showMessage("Invalid credentials!\nDemo: user/1234 or admin/1234", "Login Failed", JOptionPane.ERROR_MESSAGE);
             }
         });
 
         registerBtn.addActionListener(e -> cardLayout.show(mainPanel, "REGISTER"));
-
         return panel;
     }
 
     private JPanel createRegisterPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
 
         JLabel title = new JLabel("Register New User");
         title.setFont(new Font("Arial", Font.BOLD, 22));
-
-        JLabel userLabel = new JLabel("Username:");
-        JTextField userField = new JTextField(15);
-
-        JLabel passLabel = new JLabel("Password:");
-        JPasswordField passField = new JPasswordField(15);
-
-        JButton registerBtn = new JButton("Register");
-        JButton backBtn = new JButton("Back to Login");
-
-        gbc.insets = new Insets(10, 10, 10, 10);
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
         panel.add(title, gbc);
 
         gbc.gridwidth = 1;
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(userLabel, gbc);
+        gbc.gridy = 1; gbc.gridx = 0;
+        panel.add(new JLabel("Username:"), gbc);
+        JTextField userField = new JTextField(15);
         gbc.gridx = 1;
         panel.add(userField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(passLabel, gbc);
+        gbc.gridy = 2; gbc.gridx = 0;
+        panel.add(new JLabel("Password:"), gbc);
+        JPasswordField passField = new JPasswordField(15);
         gbc.gridx = 1;
         panel.add(passField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridy = 3;
+        JButton registerBtn = new JButton("Register");
+        gbc.gridx = 0;
         panel.add(registerBtn, gbc);
+
+        JButton backBtn = new JButton("Back");
         gbc.gridx = 1;
         panel.add(backBtn, gbc);
 
         registerBtn.addActionListener(e -> {
             String username = userField.getText().trim();
-            String password = new String(passField.getPassword());
+            String password = new String(passField.getPassword()).trim();
 
-            if (username.isEmpty() || password.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Fill all fields!");
+            if (username.isEmpty() || password.isEmpty() || username.length() < 3) {
+                showMessage("Username & password must be 3+ characters", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
             for (User u : users) {
                 if (u.username.equals(username)) {
-                    JOptionPane.showMessageDialog(this, "User already exists!");
+                    showMessage("Username already exists!", "Error", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
             }
 
-            users.add(new User(username, password));
-            JOptionPane.showMessageDialog(this, "Registered successfully! Please login.");
+            users.add(new User(username, password, false));
+            showMessage("Registered successfully!\nPlease login.", "Success", JOptionPane.INFORMATION_MESSAGE);
             cardLayout.show(mainPanel, "LOGIN");
         });
 
         backBtn.addActionListener(e -> cardLayout.show(mainPanel, "LOGIN"));
-
         return panel;
     }
 
     private JPanel createHomePanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
-        JLabel title = new JLabel("Available Books", SwingConstants.CENTER);
+        JLabel title = new JLabel("🏠 Available Books", SwingConstants.CENTER);
         title.setFont(new Font("Arial", Font.BOLD, 24));
+        panel.add(title, BorderLayout.NORTH);
 
-        // Table for books
-        bookTableModel = new DefaultTableModel(new Object[]{"ID", "Title", "Author", "Price"}, 0);
+        bookTableModel = new DefaultTableModel(new String[]{"ID", "Title", "Author", "Price", "Stock"}, 0);
         bookTable = new JTable(bookTableModel);
         JScrollPane scrollPane = new JScrollPane(bookTable);
 
-        // Buttons
         JPanel buttonPanel = new JPanel();
-        JButton addToCartBtn = new JButton("Add to Cart");
-        JButton viewCartBtn = new JButton("View Cart");
-        JButton orderHistoryBtn = new JButton("Order History");
-        JButton adminBtn = new JButton("Admin (Books)");
-        JButton logoutBtn = new JButton("Logout");
+        JButton addToCartBtn = new JButton("🛒 Add to Cart");
+        JButton viewCartBtn = new JButton("🛍️ View Cart");
+        JButton ordersBtn = new JButton("📋 Orders");
+        JButton adminBtn = new JButton("⚙️ Admin");
+        JButton logoutBtn = new JButton("🚪 Logout");
 
         buttonPanel.add(addToCartBtn);
         buttonPanel.add(viewCartBtn);
-        buttonPanel.add(orderHistoryBtn);
+        buttonPanel.add(ordersBtn);
         buttonPanel.add(adminBtn);
         buttonPanel.add(logoutBtn);
 
-        panel.add(title, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(buttonPanel, BorderLayout.SOUTH);
 
-        // Handlers
         addToCartBtn.addActionListener(e -> {
             int row = bookTable.getSelectedRow();
             if (row == -1) {
-                JOptionPane.showMessageDialog(this, "Select a book first.");
+                showMessage("Select a book first", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            int id = (int) bookTableModel.getValueAt(row, 0);
-            Book b = findBookById(id);
-            if (b != null) {
-                cart.add(b);
-                JOptionPane.showMessageDialog(this, "Book added to cart.");
+            int id = (Integer) bookTableModel.getValueAt(row, 0);
+            Book book = findBookById(id);
+            if (book != null && book.getStock() > 0) {
+                if (!cartAlreadyHasBook(id)) {
+                    cart.add(new Book(book.getId(), book.getTitle(), book.getAuthor(), book.getPrice(), book.getStock()));
+                    book.setStock(book.getStock() - 1);
+                    refreshBookTable();
+                    showMessage(book.getTitle() + " added to cart!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    showMessage("Book already in cart!", "Info", JOptionPane.INFORMATION_MESSAGE);
+                }
+            } else {
+                showMessage("Book out of stock or not found", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 
@@ -288,14 +290,18 @@ public class OnlineBookStoreGUI extends JFrame {
             cardLayout.show(mainPanel, "CART");
         });
 
-        orderHistoryBtn.addActionListener(e -> {
+        ordersBtn.addActionListener(e -> {
             refreshOrdersTable();
             cardLayout.show(mainPanel, "ORDERS");
         });
 
         adminBtn.addActionListener(e -> {
-            refreshAdminBookTable();
-            cardLayout.show(mainPanel, "ADMIN");
+            if (currentUser != null && currentUser.isAdmin) {
+                refreshAdminBookTable();
+                cardLayout.show(mainPanel, "ADMIN");
+            } else {
+                showMessage("Admin access required", "Access Denied", JOptionPane.WARNING_MESSAGE);
+            }
         });
 
         logoutBtn.addActionListener(e -> {
@@ -307,23 +313,33 @@ public class OnlineBookStoreGUI extends JFrame {
         return panel;
     }
 
+    private boolean cartAlreadyHasBook(int id) {
+        for (Book b : cart) {
+            if (b.getId() == id) return true;
+        }
+        return false;
+    }
+
     private JPanel createCartPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
-        cartTableModel = new DefaultTableModel(new Object[]{"ID", "Title", "Price"}, 0);
+        JLabel title = new JLabel("🛒 Shopping Cart", SwingConstants.CENTER);
+        title.setFont(new Font("Arial", Font.BOLD, 20));
+        panel.add(title, BorderLayout.NORTH);
+
+        cartTableModel = new DefaultTableModel(new String[]{"ID", "Title", "Author", "Price"}, 0);
         cartTable = new JTable(cartTableModel);
         JScrollPane scrollPane = new JScrollPane(cartTable);
 
         JPanel bottomPanel = new JPanel();
-        JButton removeBtn = new JButton("Remove Selected");
-        JButton placeOrderBtn = new JButton("Place Order");
-        JButton backBtn = new JButton("Back");
+        JButton removeBtn = new JButton("❌ Remove");
+        JButton placeOrderBtn = new JButton("💳 Place Order");
+        JButton backBtn = new JButton("⬅️ Back");
 
         bottomPanel.add(removeBtn);
         bottomPanel.add(placeOrderBtn);
         bottomPanel.add(backBtn);
 
-        panel.add(new JLabel("Shopping Cart", SwingConstants.CENTER), BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(bottomPanel, BorderLayout.SOUTH);
 
@@ -332,29 +348,27 @@ public class OnlineBookStoreGUI extends JFrame {
         removeBtn.addActionListener(e -> {
             int row = cartTable.getSelectedRow();
             if (row == -1) {
-                JOptionPane.showMessageDialog(this, "Select a book to remove.");
+                showMessage("Select book to remove", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            int id = (int) cartTableModel.getValueAt(row, 0);
-            cart.removeIf(b -> b.id == id);
+            int id = (Integer) cartTableModel.getValueAt(row, 0);
+            cart.removeIf(b -> b.getId() == id);
             refreshCartTable();
         });
 
         placeOrderBtn.addActionListener(e -> {
             if (cart.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Cart is empty.");
+                showMessage("Cart is empty", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
             double total = 0;
-            StringBuilder details = new StringBuilder();
             for (Book b : cart) {
-                total += b.price;
-                details.append(b.title).append(", ");
+                total += b.getPrice();
             }
-            orders.add("User: " + currentUser.username + " | Items: " + details + "Total: " + total);
+            orders.add(new Order(currentUser.username, new ArrayList<>(cart), total));
             cart.clear();
             refreshCartTable();
-            JOptionPane.showMessageDialog(this, "Order placed successfully! Total: " + total);
+            showMessage("Order placed! Total: " + currencyFormat.format(total), "Success", JOptionPane.INFORMATION_MESSAGE);
         });
 
         return panel;
@@ -363,110 +377,64 @@ public class OnlineBookStoreGUI extends JFrame {
     private JPanel createAdminPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
-        adminBookTableModel = new DefaultTableModel(new Object[]{"ID", "Title", "Author", "Price"}, 0);
+        JLabel title = new JLabel("⚙️ Admin - Manage Books", SwingConstants.CENTER);
+        title.setFont(new Font("Arial", Font.BOLD, 20));
+        panel.add(title, BorderLayout.NORTH);
+
+        adminBookTableModel = new DefaultTableModel(new String[]{"ID", "Title", "Author", "Price", "Stock"}, 0);
         adminBookTable = new JTable(adminBookTableModel);
         JScrollPane scrollPane = new JScrollPane(adminBookTable);
 
-        JPanel topPanel = new JPanel();
-        JButton backBtn = new JButton("Back");
-        topPanel.add(new JLabel("Admin - Manage Books"));
-        topPanel.add(backBtn);
+        JPanel formPanel = new JPanel(new GridLayout(6, 2, 5, 5));
+        formPanel.add(new JLabel("ID:"));
+        adminIdField = new JTextField();
+        formPanel.add(adminIdField);
+        
+        formPanel.add(new JLabel("Title:"));
+        adminTitleField = new JTextField();
+        formPanel.add(adminTitleField);
+        
+        formPanel.add(new JLabel("Author:"));
+        adminAuthorField = new JTextField();
+        formPanel.add(adminAuthorField);
+        
+        formPanel.add(new JLabel("Price:"));
+        adminPriceField = new JTextField();
+        formPanel.add(adminPriceField);
+        
+        formPanel.add(new JLabel("Stock:"));
+        adminStockField = new JTextField();
+        formPanel.add(adminStockField);
 
-        JPanel bottomPanel = new JPanel();
-        JTextField idField = new JTextField(4);
-        JTextField titleField = new JTextField(10);
-        JTextField authorField = new JTextField(10);
-        JTextField priceField = new JTextField(6);
-
+        JPanel buttonPanel = new JPanel();
         JButton addBtn = new JButton("Add");
         JButton updateBtn = new JButton("Update");
         JButton deleteBtn = new JButton("Delete");
+        JButton backBtn = new JButton("Back");
 
-        bottomPanel.add(new JLabel("ID:"));
-        bottomPanel.add(idField);
-        bottomPanel.add(new JLabel("Title:"));
-        bottomPanel.add(titleField);
-        bottomPanel.add(new JLabel("Author:"));
-        bottomPanel.add(authorField);
-        bottomPanel.add(new JLabel("Price:"));
-        bottomPanel.add(priceField);
-        bottomPanel.add(addBtn);
-        bottomPanel.add(updateBtn);
-        bottomPanel.add(deleteBtn);
+        buttonPanel.add(addBtn);
+        buttonPanel.add(updateBtn);
+        buttonPanel.add(deleteBtn);
+        buttonPanel.add(backBtn);
 
-        panel.add(topPanel, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
-        panel.add(bottomPanel, BorderLayout.SOUTH);
+        panel.add(formPanel, BorderLayout.NORTH);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
 
+        addBtn.addActionListener(e -> addAdminBook());
+        updateBtn.addActionListener(e -> updateAdminBook());
+        deleteBtn.addActionListener(e -> deleteAdminBook());
         backBtn.addActionListener(e -> cardLayout.show(mainPanel, "HOME"));
-
-        addBtn.addActionListener(e -> {
-            try {
-                int id = Integer.parseInt(idField.getText().trim());
-                String title = titleField.getText().trim();
-                String author = authorField.getText().trim();
-                double price = Double.parseDouble(priceField.getText().trim());
-
-                if (title.isEmpty() || author.isEmpty()) {
-                    JOptionPane.showMessageDialog(this, "Fill all fields.");
-                    return;
-                }
-
-                if (findBookById(id) != null) {
-                    JOptionPane.showMessageDialog(this, "ID already exists.");
-                    return;
-                }
-
-                books.add(new Book(id, title, author, price));
-                refreshAdminBookTable();
-                JOptionPane.showMessageDialog(this, "Book added.");
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Invalid ID or price.");
-            }
-        });
-
-        updateBtn.addActionListener(e -> {
-            try {
-                int id = Integer.parseInt(idField.getText().trim());
-                Book b = findBookById(id);
-                if (b == null) {
-                    JOptionPane.showMessageDialog(this, "Book not found.");
-                    return;
-                }
-                String title = titleField.getText().trim();
-                String author = authorField.getText().trim();
-                double price = Double.parseDouble(priceField.getText().trim());
-
-                if (!title.isEmpty()) b.title = title;
-                if (!author.isEmpty()) b.author = author;
-                b.price = price;
-
-                refreshAdminBookTable();
-                JOptionPane.showMessageDialog(this, "Book updated.");
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Invalid ID or price.");
-            }
-        });
-
-        deleteBtn.addActionListener(e -> {
-            try {
-                int id = Integer.parseInt(idField.getText().trim());
-                books.removeIf(b -> b.id == id);
-                refreshAdminBookTable();
-                JOptionPane.showMessageDialog(this, "Book deleted (if existed).");
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Invalid ID.");
-            }
-        });
 
         adminBookTable.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
                 int row = adminBookTable.getSelectedRow();
                 if (row != -1) {
-                    idField.setText(adminBookTableModel.getValueAt(row, 0).toString());
-                    titleField.setText(adminBookTableModel.getValueAt(row, 1).toString());
-                    authorField.setText(adminBookTableModel.getValueAt(row, 2).toString());
-                    priceField.setText(adminBookTableModel.getValueAt(row, 3).toString());
+                    adminIdField.setText(adminBookTableModel.getValueAt(row, 0).toString());
+                    adminTitleField.setText(adminBookTableModel.getValueAt(row, 1).toString());
+                    adminAuthorField.setText(adminBookTableModel.getValueAt(row, 2).toString());
+                    adminPriceField.setText(adminBookTableModel.getValueAt(row, 3).toString());
+                    adminStockField.setText(adminBookTableModel.getValueAt(row, 4).toString());
                 }
             }
         });
@@ -474,28 +442,103 @@ public class OnlineBookStoreGUI extends JFrame {
         return panel;
     }
 
+    private void addAdminBook() {
+        try {
+            int id = Integer.parseInt(adminIdField.getText().trim());
+            String title = adminTitleField.getText().trim();
+            String author = adminAuthorField.getText().trim();
+            double price = Double.parseDouble(adminPriceField.getText().trim());
+            int stock = Integer.parseInt(adminStockField.getText().trim());
+
+            if (title.isEmpty() || author.isEmpty()) {
+                showMessage("Fill all fields", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (findBookById(id) != null) {
+                showMessage("ID already exists", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            books.add(new Book(id, title, author, price, stock));
+            refreshAdminBookTable();
+            showMessage("Book added successfully", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearAdminFields();
+        } catch (NumberFormatException ex) {
+            showMessage("Invalid number format", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void updateAdminBook() {
+        try {
+            int id = Integer.parseInt(adminIdField.getText().trim());
+            Book book = findBookById(id);
+            if (book == null) {
+                showMessage("Book not found", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            String title = adminTitleField.getText().trim();
+            String author = adminAuthorField.getText().trim();
+            double price = Double.parseDouble(adminPriceField.getText().trim());
+            int stock = Integer.parseInt(adminStockField.getText().trim());
+
+            // Update only if fields are filled
+            if (!title.isEmpty()) book.title = title;
+            if (!author.isEmpty()) book.author = author;
+            book.price = price;
+            book.stock = stock;
+
+            refreshAdminBookTable();
+            showMessage("Book updated", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (NumberFormatException ex) {
+            showMessage("Invalid number format", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void deleteAdminBook() {
+        try {
+            int id = Integer.parseInt(adminIdField.getText().trim());
+            books.removeIf(b -> b.getId() == id);
+            refreshAdminBookTable();
+            showMessage("Book deleted", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearAdminFields();
+        } catch (NumberFormatException ex) {
+            showMessage("Invalid ID", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void clearAdminFields() {
+        adminIdField.setText("");
+        adminTitleField.setText("");
+        adminAuthorField.setText("");
+        adminPriceField.setText("");
+        adminStockField.setText("");
+    }
+
     private JPanel createOrdersPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
-        ordersTableModel = new DefaultTableModel(new Object[]{"Order Details"}, 0);
+        JLabel title = new JLabel("📋 Order History", SwingConstants.CENTER);
+        title.setFont(new Font("Arial", Font.BOLD, 20));
+        panel.add(title, BorderLayout.NORTH);
+
+        ordersTableModel = new DefaultTableModel(new String[]{"Order Details"}, 0);
         ordersTable = new JTable(ordersTableModel);
         JScrollPane scrollPane = new JScrollPane(ordersTable);
 
         JButton backBtn = new JButton("Back");
-
-        panel.add(new JLabel("Order History", SwingConstants.CENTER), BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(backBtn, BorderLayout.SOUTH);
 
         backBtn.addActionListener(e -> cardLayout.show(mainPanel, "HOME"));
-
         return panel;
     }
 
     // Helper methods
     private Book findBookById(int id) {
         for (Book b : books) {
-            if (b.id == id) return b;
+            if (b.getId() == id) return b;
         }
         return null;
     }
@@ -503,32 +546,37 @@ public class OnlineBookStoreGUI extends JFrame {
     private void refreshBookTable() {
         bookTableModel.setRowCount(0);
         for (Book b : books) {
-            bookTableModel.addRow(new Object[]{b.id, b.title, b.author, b.price});
+            bookTableModel.addRow(new Object[]{b.getId(), b.getTitle(), b.getAuthor(), 
+                currencyFormat.format(b.getPrice()), b.getStock()});
         }
     }
 
     private void refreshCartTable() {
         cartTableModel.setRowCount(0);
         for (Book b : cart) {
-            cartTableModel.addRow(new Object[]{b.id, b.title, b.price});
+            cartTableModel.addRow(new Object[]{b.getId(), b.getTitle(), b.getAuthor(), 
+                currencyFormat.format(b.getPrice())});
         }
     }
 
     private void refreshAdminBookTable() {
         adminBookTableModel.setRowCount(0);
         for (Book b : books) {
-            adminBookTableModel.addRow(new Object[]{b.id, b.title, b.author, b.price});
+            adminBookTableModel.addRow(new Object[]{b.getId(), b.getTitle(), b.getAuthor(), 
+                currencyFormat.format(b.getPrice()), b.getStock()});
         }
     }
 
     private void refreshOrdersTable() {
         ordersTableModel.setRowCount(0);
-        for (String s : orders) {
-            ordersTableModel.addRow(new Object[]{s});
+        for (Order o : orders) {
+            String details = o.user + " | Total: " + currencyFormat.format(o.total) + 
+                           " | " + o.timestamp.substring(0, 16);
+            ordersTableModel.addRow(new Object[]{details});
         }
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(OnlineBookStoreGUI::new);
+        SwingUtilities.invokeLater(() -> new OnlineBookStoreGUI());
     }
 }
